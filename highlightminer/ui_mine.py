@@ -49,6 +49,8 @@ from .model_access import (
     validate_local_model_directory,
 )
 from .pipeline import analyze_vod, snapshot_analysis_config
+from .preview_marks import marked_bounds
+from .preview_player import preview_player
 from .review import load_review, save_review
 from .security import validate_chat_file, validate_local_video
 from .settings_presets import detect_weight_preset, normalize_weights
@@ -1057,6 +1059,15 @@ def _render_review(db_path: Path) -> None:
         st.session_state[_PREVIEW_CLOSED_KEY] = False
         st.session_state.setdefault(preview_bounds_key, (original_start, original_end))
 
+    # Apply mark events before instantiating the timestamp widgets on this rerun.
+    mark_warning = st.session_state.pop(f"mark_warning_{preview_token}", None)
+    if mark_warning:
+        st.warning(mark_warning)
+    pending_mark = st.session_state.pop(f"pending_mark_{preview_token}", None)
+    if pending_mark is not None:
+        st.session_state[f"clip_start_time_{analysis_id}_{candidate['id']}"] = format_editable_time(pending_mark[0])
+        st.session_state[f"clip_end_time_{analysis_id}_{candidate['id']}"] = format_editable_time(pending_mark[1])
+
     st.subheader(f"🎞️ {candidate['id']} — {candidate['reason']}", anchor=False)
     with st.form(f"clip_timing_form_{analysis_id}_{candidate['id']}"):
         left, right = st.columns(2)
@@ -1128,7 +1139,30 @@ def _render_review(db_path: Path) -> None:
                         preview_start,
                         preview_end,
                     )
-                preview_slot.video(str(preview.path), width=640)
+                player_token = f"{preview_token}:{preview_start!r}:{preview_end!r}"
+                last_mark_key = f"last_mark_{preview_token}"
+                with preview_slot.container():
+                    mark = preview_player(
+                        preview.path, token=player_token,
+                        key=f"mark_player_{preview_token}", disabled=not timing_valid,
+                        duration=preview_end - preview_start,
+                        ack=st.session_state.get(last_mark_key),
+                    )
+                if isinstance(mark, dict) and mark.get("id") and mark["id"] != st.session_state.get(last_mark_key):
+                    st.session_state[last_mark_key] = mark["id"]
+                    try:
+                        if not timing_valid:
+                            raise ValueError("Correct the clip range before setting a mark.")
+                        marked = marked_bounds(
+                            mark, token=player_token, preview_start=preview_start,
+                            preview_end=preview_end, start=edited_start, end=edited_end,
+                            source_duration=float(analysis["duration"]),
+                        )
+                    except ValueError as exc:
+                        st.session_state[f"mark_warning_{preview_token}"] = str(exc)
+                    else:
+                        st.session_state[f"pending_mark_{preview_token}"] = marked
+                    st.rerun()
                 st.caption(
                     f"Local preview only: {format_time(preview_start)} → {format_time(preview_end)}. "
                     "The full source VOD is never sent to the UI player."

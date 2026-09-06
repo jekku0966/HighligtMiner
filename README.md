@@ -183,6 +183,8 @@ The Mine / Review workflow includes:
 
 Kept clips can be staged before FFmpeg starts. Queue entries survive Streamlit reruns, reject duplicates, show per-item and overall status, retain failures for retry, and record successful outputs in export history.
 
+**Mark In** and **Mark Out** pause the preview and fill the clip start or end from the current playhead. Set both marks, then click **Update preview** to check the trim and **Save timing** (or **Keep**) to save it. Manual timestamp editing remains available; use it to extend beyond the current preview.
+
 A custom clip title becomes the clean filename. Untitled clips fall back to the candidate ID.
 
 Exports use sanitized category folders and do not silently overwrite an existing file:

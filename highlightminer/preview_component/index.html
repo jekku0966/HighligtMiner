@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body { margin: 0; font: 14px sans-serif; color: inherit; }
+video { display: block; width: 100%; max-width: 640px; max-height: 360px; background: #000; }
+.controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 0; }
+button { font: inherit; padding: 7px 14px; border: 1px solid #888; border-radius: 6px; cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
+#status { margin: 0; font-size: 13px; }
+</style></head>
+<body>
+<video id="player" controls preload="metadata" playsinline aria-label="Candidate preview"></video>
+<div class="controls"><button id="in" disabled>Mark In</button><button id="out" disabled>Mark Out</button></div>
+<p id="status" role="status">Seek to a boundary, then mark it. Use Update preview to apply the trim.</p>
+<script>
+const player = document.getElementById('player');
+const status = document.getElementById('status');
+const buttons = ['in', 'out'].map(id => document.getElementById(id));
+let token = null, disabled = true, sequence = 0, pending = null, duration = 0;
+const instance = Math.random().toString(36).slice(2);
+function send(type, data = {}) { parent.postMessage({isStreamlitMessage: true, type, ...data}, '*'); }
+function height() { send('streamlit:setFrameHeight', {height: document.body.scrollHeight + 4}); }
+function ready() { buttons.forEach(b => b.disabled = disabled || pending !== null || player.readyState < 1 || !Number.isFinite(player.duration) || !!player.error); }
+window.addEventListener('message', event => {
+  if (event.source !== parent || event.data.type !== 'streamlit:render') return;
+  const args = event.data.args;
+  disabled = !!args.disabled; duration = args.duration;
+  if (args.ack === pending) pending = null;
+  if (args.token !== token) {
+    pending = null; player.pause(); token = args.token; player.src = args.src; player.load();
+    status.textContent = 'Seek to a boundary, then mark it. Use Update preview to apply the trim.';
+  }
+  const theme = event.data.theme;
+  if (theme) document.body.style.color = theme.textColor;
+  ready(); height();
+});
+buttons.forEach(button => button.addEventListener('click', () => {
+  if (button.disabled || !Number.isFinite(player.currentTime)) return;
+  player.pause();
+  pending = instance + ":" + (++sequence);
+  ready();
+  send('streamlit:setComponentValue', {dataType: 'json', value: {
+    id: pending, token, action: button.id, position: Math.min(player.currentTime, duration)
+  }});
+  status.textContent = 'Mark sent. Check the timestamp fields, then use Update preview.';
+  height();
+}));
+player.addEventListener('loadedmetadata', () => { ready(); height(); });
+player.addEventListener('error', () => { ready(); status.textContent = 'Preview could not be played. Try Update preview.'; height(); });
+new ResizeObserver(height).observe(document.body);
+send('streamlit:componentReady', {apiVersion: 1}); height();
+</script></body></html>

@@ -10,6 +10,7 @@ ROOT = Path(SPECPATH).resolve()
 # of relying only on the PYZ archive so the frozen launcher can hand it to
 # Streamlit's normal `run` command.
 datas = [
+    (str(ROOT / "highlightminer" / "preview_component"), "highlightminer/preview_component"),
     (str(ROOT / "highlightminer" / "app.py"), "highlightminer"),
 ]
 binaries = []
