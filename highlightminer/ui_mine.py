@@ -87,11 +87,14 @@ _PENDING_DELETE_ANALYSIS_KEY = "pending_delete_analysis_id"
 _CONTINUE_WITHOUT_SPEECH_LABEL = "Continue without\nspeech"
 
 
-def _clip_editor_value(value: str, original_seconds: float) -> float:
+def _clip_editor_value(
+    value: str, original_seconds: float, original_text: str | None = None
+) -> float:
     """Parse an editor value while preserving an untouched precise boundary."""
     text = str(value).strip()
     original = float(original_seconds)
-    if text == format_editable_time(original):
+    previous_text = format_editable_time(original) if original_text is None else original_text
+    if str(value) == previous_text:
         return original
     parsed = parse_editable_time(text)
     if parsed is None:
@@ -106,6 +109,8 @@ def _clip_editor_bounds(
     original_start: float,
     original_end: float,
     source_duration: float,
+    original_start_text: str | None = None,
+    original_end_text: str | None = None,
 ) -> ClipBounds:
     """Validate edited clip timestamps against the source timeline."""
     message = (
@@ -113,8 +118,8 @@ def _clip_editor_bounds(
         "The end must be at least 0.1 seconds after the start, and both must stay within the VOD."
     )
     try:
-        start = _clip_editor_value(start_value, original_start)
-        end = _clip_editor_value(end_value, original_end)
+        start = _clip_editor_value(start_value, original_start, original_start_text)
+        end = _clip_editor_value(end_value, original_end, original_end_text)
         if end <= start or end - start < 0.1 - 1e-9:
             raise ValueError
         bounds = normalize_clip_bounds(start, end, source_duration)
@@ -1080,11 +1085,17 @@ def _render_review(db_path: Path) -> None:
     precise_start, precise_end = st.session_state.get(
         precise_bounds_key, (original_start, original_end)
     )
+    text_key = f"clip_boundary_text_{preview_token}"
+    start_text, end_text = st.session_state.get(
+        text_key, (format_editable_time(precise_start), format_editable_time(precise_end))
+    )
     # Streamlit removes widget state when a candidate leaves the page.
     if start_key not in st.session_state:
         precise_start = original_start
+        start_text = format_editable_time(original_start)
     if end_key not in st.session_state:
         precise_end = original_end
+        end_text = format_editable_time(original_end)
     st.session_state.setdefault(start_key, format_editable_time(original_start))
     st.session_state.setdefault(end_key, format_editable_time(original_end))
     st.session_state[precise_bounds_key] = (precise_start, precise_end)
@@ -1092,6 +1103,8 @@ def _render_review(db_path: Path) -> None:
         st.session_state[start_key] = format_editable_time(pending_mark[0])
         st.session_state[end_key] = format_editable_time(pending_mark[1])
         st.session_state[precise_bounds_key] = pending_mark
+        start_text = st.session_state[start_key]
+        end_text = st.session_state[end_key]
     precise_start, precise_end = st.session_state[precise_bounds_key]
 
     st.subheader(f"🎞️ {candidate['id']} — {candidate['reason']}", anchor=False)
@@ -1117,6 +1130,8 @@ def _render_review(db_path: Path) -> None:
             end_value,
             original_start=precise_start,
             original_end=precise_end,
+            original_start_text=start_text,
+            original_end_text=end_text,
             source_duration=float(analysis["duration"]),
         )
     except ValueError as exc:
@@ -1130,6 +1145,7 @@ def _render_review(db_path: Path) -> None:
         edited_start = edited_bounds.start
         edited_end = edited_bounds.end
         st.session_state[precise_bounds_key] = (edited_start, edited_end)
+        st.session_state[text_key] = (start_value, end_value)
 
     if update_preview and timing_valid:
         st.session_state[_PREVIEW_CLOSED_KEY] = False

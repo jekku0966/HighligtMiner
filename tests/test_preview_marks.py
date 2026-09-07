@@ -113,6 +113,15 @@ _render_review(Path("unused.db"))
     next(b for b in app.button if b.label == "💾 Save timing").click().run()
     assert saved[-1]["start"] == 105.75
     assert saved[-1]["end"] == 122.5
+    # Replacing manually entered fractions with whole seconds must drop them.
+    app.text_input(key="clip_start_time_analysis_H001").set_value("01:45")
+    next(b for b in app.button if b.label == "Update preview").click().run()
+    assert app.session_state["preview_bounds_analysis_H001"] == (105.0, 122.5)
+    next(b for b in app.button if b.label == "💾 Save timing").click().run()
+    assert saved[-1]["start"] == 105.0
+    assert saved[-1]["end"] == 122.5
+    app.run()
+    assert not app.exception
 
 
 def test_preview_component_event_protocol():
