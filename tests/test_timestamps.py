@@ -173,3 +173,8 @@ def test_invalid_order_is_repaired_to_positive_range() -> None:
 def test_non_finite_values_are_rejected() -> None:
     with pytest.raises(ValueError, match="finite"):
         normalize_clip_bounds(0.0, float("nan"), 100.0)
+
+
+@pytest.mark.parametrize("value,previous", [("01:44 ", "01:44"), (" 01:44", "01:44 ")])
+def test_whitespace_only_edit_preserves_precise_mark(value, previous):
+    assert ui_mine._clip_editor_value(value, 104.25, previous) == 104.25

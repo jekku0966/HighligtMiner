@@ -94,7 +94,7 @@ def _clip_editor_value(
     text = str(value).strip()
     original = float(original_seconds)
     previous_text = format_editable_time(original) if original_text is None else original_text
-    if str(value) == previous_text:
+    if text == previous_text.strip():
         return original
     parsed = parse_editable_time(text)
     if parsed is None:
@@ -1089,15 +1089,9 @@ def _render_review(db_path: Path) -> None:
     start_text, end_text = st.session_state.get(
         text_key, (format_editable_time(precise_start), format_editable_time(precise_end))
     )
-    # Streamlit removes widget state when a candidate leaves the page.
-    if start_key not in st.session_state:
-        precise_start = original_start
-        start_text = format_editable_time(original_start)
-    if end_key not in st.session_state:
-        precise_end = original_end
-        end_text = format_editable_time(original_end)
-    st.session_state.setdefault(start_key, format_editable_time(original_start))
-    st.session_state.setdefault(end_key, format_editable_time(original_end))
+    # Restore candidate-specific edits after Streamlit removes absent widgets.
+    st.session_state.setdefault(start_key, start_text)
+    st.session_state.setdefault(end_key, end_text)
     st.session_state[precise_bounds_key] = (precise_start, precise_end)
     if pending_mark is not None:
         st.session_state[start_key] = format_editable_time(pending_mark[0])
