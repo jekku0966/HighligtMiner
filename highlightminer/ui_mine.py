@@ -1074,9 +1074,25 @@ def _render_review(db_path: Path) -> None:
     if mark_warning:
         st.warning(mark_warning)
     pending_mark = st.session_state.pop(f"pending_mark_{preview_token}", None)
+    start_key = f"clip_start_time_{analysis_id}_{candidate['id']}"
+    end_key = f"clip_end_time_{analysis_id}_{candidate['id']}"
+    precise_bounds_key = f"clip_precise_bounds_{preview_token}"
+    precise_start, precise_end = st.session_state.get(
+        precise_bounds_key, (original_start, original_end)
+    )
+    # Streamlit removes widget state when a candidate leaves the page.
+    if start_key not in st.session_state:
+        precise_start = original_start
+    if end_key not in st.session_state:
+        precise_end = original_end
+    st.session_state.setdefault(start_key, format_editable_time(original_start))
+    st.session_state.setdefault(end_key, format_editable_time(original_end))
+    st.session_state[precise_bounds_key] = (precise_start, precise_end)
     if pending_mark is not None:
-        st.session_state[f"clip_start_time_{analysis_id}_{candidate['id']}"] = format_editable_time(pending_mark[0])
-        st.session_state[f"clip_end_time_{analysis_id}_{candidate['id']}"] = format_editable_time(pending_mark[1])
+        st.session_state[start_key] = format_editable_time(pending_mark[0])
+        st.session_state[end_key] = format_editable_time(pending_mark[1])
+        st.session_state[precise_bounds_key] = pending_mark
+    precise_start, precise_end = st.session_state[precise_bounds_key]
 
     st.subheader(f"🎞️ {candidate['id']} — {candidate['reason']}", anchor=False)
     with st.form(f"clip_timing_form_{analysis_id}_{candidate['id']}"):
@@ -1084,15 +1100,13 @@ def _render_review(db_path: Path) -> None:
         with left:
             start_value = st.text_input(
                 "Clip start",
-                value=format_editable_time(original_start),
-                key=f"clip_start_time_{analysis_id}_{candidate['id']}",
+                key=start_key,
                 help="Use MM:SS or HH:MM:SS. Fractional seconds are optional.",
             )
         with right:
             end_value = st.text_input(
                 "Clip end",
-                value=format_editable_time(original_end),
-                key=f"clip_end_time_{analysis_id}_{candidate['id']}",
+                key=end_key,
                 help="Use MM:SS or HH:MM:SS. Fractional seconds are optional.",
             )
         update_preview = st.form_submit_button("Update preview", type="primary", width="stretch")
@@ -1101,8 +1115,8 @@ def _render_review(db_path: Path) -> None:
         edited_bounds = _clip_editor_bounds(
             start_value,
             end_value,
-            original_start=original_start,
-            original_end=original_end,
+            original_start=precise_start,
+            original_end=precise_end,
             source_duration=float(analysis["duration"]),
         )
     except ValueError as exc:
@@ -1115,6 +1129,7 @@ def _render_review(db_path: Path) -> None:
         timing_valid = True
         edited_start = edited_bounds.start
         edited_end = edited_bounds.end
+        st.session_state[precise_bounds_key] = (edited_start, edited_end)
 
     if update_preview and timing_valid:
         st.session_state[_PREVIEW_CLOSED_KEY] = False

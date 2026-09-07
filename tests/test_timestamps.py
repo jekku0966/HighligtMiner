@@ -32,10 +32,12 @@ def test_display_timestamp_omits_only_redundant_fractional_zeroes(
     ("seconds", "expected"),
     [
         (0.0, "00:00"),
-        (12.5, "00:12.5"),
-        (1434.5, "23:54.5"),
-        (3918.0, "01:05:18"),
-        (3964.5, "01:06:04.5"),
+        (59.9996, "00:59"),
+        (3599.9996, "59:59"),
+        (12.5, "00:12"),
+        (1434.5, "23:54"),
+        (3918.0, "1:05:18"),
+        (3964.5, "1:06:04"),
     ],
 )
 def test_editable_timestamp_uses_minutes_until_an_hour(
