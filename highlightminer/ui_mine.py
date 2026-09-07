@@ -1102,21 +1102,24 @@ def _render_review(db_path: Path) -> None:
     precise_start, precise_end = st.session_state[precise_bounds_key]
 
     st.subheader(f"🎞️ {candidate['id']} — {candidate['reason']}", anchor=False)
-    with st.form(f"clip_timing_form_{analysis_id}_{candidate['id']}"):
-        left, right = st.columns(2)
-        with left:
-            start_value = st.text_input(
-                "Clip start",
-                key=start_key,
-                help="Use MM:SS or HH:MM:SS. Fractional seconds are optional.",
-            )
-        with right:
-            end_value = st.text_input(
-                "Clip end",
-                key=end_key,
-                help="Use MM:SS or HH:MM:SS. Fractional seconds are optional.",
-            )
-        update_preview = st.form_submit_button("Update preview", type="primary", width="stretch")
+    # Marks arrive outside a form; keep these widgets in the same live state.
+    left, right = st.columns(2)
+    with left:
+        start_value = st.text_input(
+            "Clip start",
+            key=start_key,
+            help="Use MM:SS or HH:MM:SS. Fractional seconds are optional.",
+        )
+    with right:
+        end_value = st.text_input(
+            "Clip end",
+            key=end_key,
+            help="Use MM:SS or HH:MM:SS. Fractional seconds are optional.",
+        )
+    update_preview = st.button(
+        "Update preview", type="primary", width="stretch",
+        key=f"update_preview_{preview_token}",
+    )
 
     try:
         edited_bounds = _clip_editor_bounds(
@@ -1179,7 +1182,7 @@ def _render_review(db_path: Path) -> None:
                 with preview_slot.container():
                     mark = preview_player(
                         preview.path, token=player_token,
-                        key=f"mark_player_{preview_token}", disabled=not timing_valid,
+                        key=f"mark_player_{player_token}", disabled=not timing_valid,
                         duration=preview_end - preview_start,
                         ack=st.session_state.get(last_mark_key),
                     )

@@ -61,15 +61,23 @@ def test_review_mark_updates_fields_once_and_saves_source_bounds(monkeypatch, tm
                     candidates=[candidate, dict(candidate, id="H002")])
     review = default_review(analysis)
     saved = []
+    preview_calls = []
+    player_calls = []
     monkeypatch.setattr(ui_mine, "load_analysis", lambda *_: analysis)
     monkeypatch.setattr(ui_mine, "load_analysis_identity", lambda *_: {"analysis_name": "Test"})
     monkeypatch.setattr(ui_mine, "load_review", lambda *_: review)
     monkeypatch.setattr(ui_mine, "save_review", lambda *args: saved.append(dict(args[-1]["items"]["H001"])))
     monkeypatch.setattr(ui_mine, "load_active_export_batch", lambda *_: None)
     monkeypatch.setattr(ui_mine, "validate_local_video", lambda *_: tmp_path / "test.mp4")
-    monkeypatch.setattr(ui_mine, "create_preview_clip", lambda *_: SimpleNamespace(path=tmp_path / "test.mp4", cleanup_failures=0))
+    def build_preview(*args):
+        preview_calls.append(args[-2:])
+        return SimpleNamespace(path=tmp_path / "test.mp4", cleanup_failures=0)
+    monkeypatch.setattr(ui_mine, "create_preview_clip", build_preview)
     monkeypatch.setattr(ui_mine, "path_picker", lambda *args, **kwargs: str(tmp_path))
-    monkeypatch.setattr(ui_mine, "preview_player", lambda *args, **kwargs: ui_mine.st.session_state.get("test_mark"))
+    def render_player(*args, **kwargs):
+        player_calls.append(kwargs)
+        return ui_mine.st.session_state.get("test_mark")
+    monkeypatch.setattr(ui_mine, "preview_player", render_player)
     app = AppTest.from_string('''
 from pathlib import Path
 import streamlit as st
@@ -78,6 +86,7 @@ st.session_state["analysis_id"] = "analysis"
 _render_review(Path("unused.db"))
 ''').run()
     assert not app.exception
+    original_player_key = player_calls[-1]["key"]
     token = "analysis:H001:100.0:130.0"
     app.session_state["test_mark"] = dict(id="1", token=token, action="in", position=4.25)
     app.run()
@@ -87,6 +96,17 @@ _render_review(Path("unused.db"))
     app.session_state["test_mark"] = dict(id="2", token=token, action="out", position=22.5)
     app.run()
     assert app.text_input(key="clip_end_time_analysis_H001").value == "02:02"
+    assert player_calls[-1]["key"] == original_player_key
+    assert preview_calls[-1] == (100.0, 130.0)
+    # Update immediately after marking, without Save timing or candidate navigation.
+    next(b for b in app.button if b.label == "Update preview").click().run()
+    assert preview_calls[-1] == (104.25, 122.5)
+    assert player_calls[-1]["duration"] == 18.25
+    assert player_calls[-1]["token"] == "analysis:H001:104.25:122.5"
+    assert player_calls[-1]["key"] != original_player_key
+    refreshed_key = player_calls[-1]["key"]
+    app.run()
+    assert player_calls[-1]["key"] == refreshed_key
     # Unsaved marks survive switching candidates and Streamlit widget cleanup.
     selector = next(w for w in app.selectbox if w.label == "Review candidate")
     selector.set_value(selector.options[1]).run()
@@ -99,7 +119,7 @@ _render_review(Path("unused.db"))
     app.run()
     assert app.warning
     assert app.text_input(key="clip_end_time_analysis_H001").value == "02:02"
-    assert app.session_state["preview_bounds_analysis_H001"] == (100.0, 130.0)
+    assert app.session_state["preview_bounds_analysis_H001"] == (104.25, 122.5)
     next(b for b in app.button if b.label == "💾 Save timing").click().run()
     assert saved[-1]["start"] == 104.25
     assert saved[-1]["end"] == 122.5
