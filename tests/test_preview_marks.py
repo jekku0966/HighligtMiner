@@ -58,7 +58,7 @@ def test_review_mark_updates_fields_once_and_saves_source_bounds(monkeypatch, tm
                      score=.8, reason="Reaction", audio_score=.9,
                      transcript_score=.5, chat_score=0)
     analysis = dict(duration=1000.0, work_dir=str(tmp_path), video_path="test.mp4",
-                    candidates=[candidate])
+                    candidates=[candidate, dict(candidate, id="H002")])
     review = default_review(analysis)
     saved = []
     monkeypatch.setattr(ui_mine, "load_analysis", lambda *_: analysis)
@@ -82,15 +82,23 @@ _render_review(Path("unused.db"))
     app.session_state["test_mark"] = dict(id="1", token=token, action="in", position=4.25)
     app.run()
     assert not app.exception
-    assert app.text_input(key="clip_start_time_analysis_H001").value == "01:44.25"
+    assert not app.warning
+    assert app.text_input(key="clip_start_time_analysis_H001").value == "01:44"
     app.session_state["test_mark"] = dict(id="2", token=token, action="out", position=22.5)
     app.run()
-    assert app.text_input(key="clip_end_time_analysis_H001").value == "02:02.5"
+    assert app.text_input(key="clip_end_time_analysis_H001").value == "02:02"
+    # Unsaved marks survive switching candidates and Streamlit widget cleanup.
+    selector = next(w for w in app.selectbox if w.label == "Review candidate")
+    selector.set_value(selector.options[1]).run()
+    selector = next(w for w in app.selectbox if w.label == "Review candidate")
+    selector.set_value(selector.options[0]).run()
+    assert app.text_input(key="clip_start_time_analysis_H001").value == "01:44"
+    assert app.text_input(key="clip_end_time_analysis_H001").value == "02:02"
     # An invalid mark leaves both the successful field selection and preview alone.
     app.session_state["test_mark"] = dict(id="3", token=token, action="out", position=1)
     app.run()
     assert app.warning
-    assert app.text_input(key="clip_end_time_analysis_H001").value == "02:02.5"
+    assert app.text_input(key="clip_end_time_analysis_H001").value == "02:02"
     assert app.session_state["preview_bounds_analysis_H001"] == (100.0, 130.0)
     next(b for b in app.button if b.label == "💾 Save timing").click().run()
     assert saved[-1]["start"] == 104.25
@@ -103,7 +111,29 @@ _render_review(Path("unused.db"))
     app.session_state["test_mark"] = dict(id="4", token=token, action="in", position=10)
     app.run()
     assert app.warning
-    assert app.text_input(key="clip_start_time_analysis_H001").value == "01:44.25"
+    assert app.text_input(key="clip_start_time_analysis_H001").value == "01:44"
+    assert not app.exception
+    # Manual edits replace the precise mark instead of resurrecting it on rerun.
+    app.text_input(key="clip_start_time_analysis_H001").set_value("01:45.75")
+    next(b for b in app.button if b.label == "Update preview").click().run()
+    assert app.session_state["preview_bounds_analysis_H001"] == (105.75, 122.5)
+    selector = next(w for w in app.selectbox if w.label == "Review candidate")
+    selector.set_value(selector.options[1]).run()
+    selector = next(w for w in app.selectbox if w.label == "Review candidate")
+    selector.set_value(selector.options[0]).run()
+    assert app.text_input(key="clip_start_time_analysis_H001").value == "01:45.75"
+    assert app.session_state["preview_bounds_analysis_H001"] == (105.75, 122.5)
+    next(b for b in app.button if b.label == "💾 Save timing").click().run()
+    assert saved[-1]["start"] == 105.75
+    assert saved[-1]["end"] == 122.5
+    # Replacing manually entered fractions with whole seconds must drop them.
+    app.text_input(key="clip_start_time_analysis_H001").set_value("01:45")
+    next(b for b in app.button if b.label == "Update preview").click().run()
+    assert app.session_state["preview_bounds_analysis_H001"] == (105.0, 122.5)
+    next(b for b in app.button if b.label == "💾 Save timing").click().run()
+    assert saved[-1]["start"] == 105.0
+    assert saved[-1]["end"] == 122.5
+    app.run()
     assert not app.exception
 
 

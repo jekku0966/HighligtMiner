@@ -49,9 +49,13 @@ def format_time(seconds: float) -> str:
 
 
 def format_editable_time(seconds: float) -> str:
-    """Format an editable media timestamp without an unnecessary hour field."""
-    label = format_time(seconds)
-    return label[3:] if label.startswith("00:") else label
+    """Show whole seconds; callers retain precise boundaries separately."""
+    whole = int(max(0.0, float(seconds)))
+    hours, remainder = divmod(whole, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{seconds:02d}"
+    return f"{minutes:02d}:{seconds:02d}"
 
 
 def parse_editable_time(value: Any) -> float | None:
