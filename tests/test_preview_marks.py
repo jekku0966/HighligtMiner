@@ -167,3 +167,53 @@ def test_preview_component_event_protocol():
         pytest.skip("Node is needed for the dependency-free component protocol smoke test")
     subprocess.run([node, str(Path(__file__).with_name("preview_component_smoke.cjs"))],
                    check=True, capture_output=True, text=True, timeout=15)
+
+
+def test_real_preview_component_identity_and_media_payload(tmp_path):
+    """Exercise Streamlit serialization/identity without replacing preview_player."""
+    import base64
+    import json
+    from streamlit.testing.v1 import AppTest
+
+    # Payload sentinels test transport, not media decoding.
+    original = tmp_path / "original.mp4"
+    trimmed = tmp_path / "trimmed.mp4"
+    original.write_bytes(b"original preview payload")
+    trimmed.write_bytes(b"trimmed preview payload")
+    app = AppTest.from_string('''
+from pathlib import Path
+import streamlit as st
+from highlightminer.preview_player import preview_player
+preview_player(Path(st.session_state.path), token=st.session_state.token,
+               key="mark_player_" + st.session_state.token,
+               duration=st.session_state.duration, ack=st.session_state.get("ack"))
+''')
+    app.session_state["path"] = str(original)
+    app.session_state["token"] = "analysis:H001:100.0:130.0"
+    app.session_state["duration"] = 30.0
+    app.run()
+    assert not app.exception
+    first = app.get("component_instance")[0].proto
+    first_id = first.id
+    initial_args = json.loads(first.json_args)
+    assert base64.b64decode(initial_args["src"].split(",", 1)[1]) == original.read_bytes()
+
+    app.session_state["ack"] = "mark-1"
+    app.run()
+    assert app.get("component_instance")[0].proto.id == first_id
+
+    app.session_state["path"] = str(trimmed)
+    app.session_state["token"] = "analysis:H001:104.25:122.5"
+    app.session_state["duration"] = 18.25
+    app.run()
+    assert not app.exception
+    updated = app.get("component_instance")[0].proto
+    updated_id = updated.id
+    updated_args = json.loads(updated.json_args)
+    assert updated_id != first_id
+    assert updated_args["src"] != initial_args["src"]
+    assert base64.b64decode(updated_args["src"].split(",", 1)[1]) == trimmed.read_bytes()
+    assert updated_args["duration"] == 18.25
+    assert updated_args["token"] == "analysis:H001:104.25:122.5"
+    app.run()
+    assert app.get("component_instance")[0].proto.id == updated_id
