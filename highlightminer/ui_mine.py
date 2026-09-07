@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -207,7 +208,16 @@ def _timings_caption(timings: dict) -> str:
     values = []
     for name, seconds in timings.items():
         label = str(name).removesuffix("_seconds").replace("_", " ")
-        values.append(f"{label} {float(seconds):.1f}s")
+        seconds = float(seconds)
+        if not math.isfinite(seconds):
+            duration = "unavailable"
+        elif seconds < 60:
+            duration = f"{seconds:.1f}s"
+        else:
+            duration = _format_elapsed(seconds)
+            if seconds < 3600:
+                duration = duration[3:]
+        values.append(f"{label} {duration}")
     return "Completed timings · " + " · ".join(values)
 
 

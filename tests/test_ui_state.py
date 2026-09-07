@@ -657,3 +657,20 @@ def test_job_is_created_with_click_time_settings_snapshot(tmp_path: Path, monkey
     assert persisted["status"] == "queued"
     assert persisted["config"]["settings"]["beam_size"] == 7
     assert persisted["config"]["analysis_title"] == "Immutable title"
+
+
+def test_completed_timings_handles_nonfinite_values_without_losing_valid_stages() -> None:
+    timings = {
+        "audio_seconds": 19.1,
+        "transcription_seconds": float("nan"),
+        "model_seconds": float("inf"),
+        "probe_seconds": float("-inf"),
+        "scoring_seconds": 803.0,
+        "total_seconds": 3918.0,
+    }
+    assert ui_mine._timings_caption(timings) == (
+        "Completed timings · audio 19.1s · transcription unavailable"
+        " · model unavailable · probe unavailable · scoring 13:23 · total 01:05:18"
+    )
+    assert timings["scoring_seconds"] == 803.0
+    assert timings["model_seconds"] == float("inf")
