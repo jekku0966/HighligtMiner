@@ -13,6 +13,8 @@ on:
       - "HighlightMiner.spec"
       - "build_windows.ps1"
       - "*.md"
+      - "README.txt"
+      - "assets/**"
       - "pyproject.toml"
       - "settings.json"
       - ".github/workflows/build-windows-exe.yml"

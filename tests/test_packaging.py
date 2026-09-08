@@ -49,3 +49,8 @@ def test_public_windows_ci_is_validation_only() -> None:
 
     assert "build_windows.ps1 -SkipZip" in workflow
     assert "actions/upload-artifact@" not in workflow
+
+
+def test_beta1_version_and_documents():
+    assert __version__ == '0.2.0b1'
+    assert _release_documents() == ['README.txt', 'LICENSE', 'ATTRIBUTIONS.md']

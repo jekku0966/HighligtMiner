@@ -190,18 +190,22 @@ if (Test-Path $streamlitConfigSource) {
     Write-Host "Copied Streamlit theme configuration."
 }
 
+$distBin = Join-Path $distRoot "bin"
+$distCuda = Join-Path $distRoot "runtime\cuda"
+New-Item -ItemType Directory -Path $distBin, $distCuda -Force | Out-Null
+
 $ffmpegCopied = $true
 foreach ($name in @("ffmpeg.exe", "ffprobe.exe")) {
     $rootCandidate = Join-Path $repoRoot $name
     $binCandidate = Join-Path (Join-Path $repoRoot "bin") $name
-    $destination = Join-Path $distRoot $name
-    if (Test-Path $rootCandidate) {
-        Copy-Item $rootCandidate $destination -Force
-        Write-Host "Copied $name from repository root."
-    }
-    elseif (Test-Path $binCandidate) {
+    $destination = Join-Path $distBin $name
+    if (Test-Path $binCandidate -PathType Leaf) {
         Copy-Item $binCandidate $destination -Force
         Write-Host "Copied $name from .\bin."
+    }
+    elseif (Test-Path $rootCandidate -PathType Leaf) {
+        Copy-Item $rootCandidate $destination -Force
+        Write-Host "Copied $name from repository root."
     }
     else {
         $ffmpegCopied = $false
@@ -227,11 +231,11 @@ $optionalCudaDlls = @("zlibwapi.dll")
 foreach ($name in @($requiredCudaDlls + $optionalCudaDlls)) {
     $source = Join-Path $cudaRuntimeRoot $name
     if (Test-Path $source) {
-        Copy-Item $source (Join-Path $distRoot $name) -Force
+        Copy-Item $source (Join-Path $distCuda $name) -Force
     }
 }
 
-$missingRequiredCuda = @($requiredCudaDlls | Where-Object { -not (Test-Path (Join-Path $distRoot $_)) })
+$missingRequiredCuda = @($requiredCudaDlls | Where-Object { -not (Test-Path (Join-Path $distCuda $_) -PathType Leaf) })
 if ($missingRequiredCuda.Count -gt 0) {
     Write-Warning ("Portable CUDA runtime was not fully added from runtime\cuda: " + ($missingRequiredCuda -join ", "))
     Write-Warning "The packaged app still supports CPU and a compatible system CUDA installation."
@@ -239,6 +243,14 @@ if ($missingRequiredCuda.Count -gt 0) {
 else { Write-Host "Copied portable CUDA 12 / cuDNN 9 runtime DLLs from runtime\cuda." }
 
 Write-Host ""
+Write-Host "Creating a fresh application database..."
+& $buildPython -c "import sys; from highlightminer.storage import connect; conn = connect(sys.argv[1]); conn.close()" (Join-Path $distRoot "highlightminer.db")
+if ($LASTEXITCODE -ne 0) { throw "Could not initialize the packaged application database." }
+
+Write-Host "Validating portable folder layout..."
+& $buildPython (Join-Path $repoRoot "tools\release_layout.py") $distRoot
+if ($LASTEXITCODE -ne 0) { throw "Portable folder layout validation failed." }
+
 Write-Host "Smoke-testing executable entry point..."
 & $exePath --help
 if ($LASTEXITCODE -ne 0) { throw "HighlightMiner.exe failed its --help smoke test." }

@@ -47,19 +47,17 @@ The script will:
 Typical local output:
 
 ```text
-dist/
-├── HighlightMiner/
-│   ├── HighlightMiner.exe
-│   ├── settings.json
-│   ├── ffmpeg.exe             # copied when available locally
-│   ├── ffprobe.exe            # copied when available locally
-│   ├── cublas64_12.dll        # copied when available locally
-│   ├── cublasLt64_12.dll
-│   ├── cudnn64_9.dll
-│   ├── cudnn_*.dll
-│   └── _internal/
-├── HighlightMiner-v0.2.0.dev0-windows-x64.zip
-└── SHA256SUMS.txt
+dist/HighlightMiner/
+  HighlightMiner.exe
+  bin/                       # ffmpeg.exe and ffprobe.exe
+  runtime/cuda/              # approved CUDA/cuDNN DLLs
+  _internal/
+  .streamlit/
+  settings.json
+  highlightminer.db          # fresh, empty application database
+  README.txt
+  LICENSE
+  ATTRIBUTIONS.md
 ```
 
 Useful build switches:
@@ -153,7 +151,7 @@ For the currently tested portable layout:
 - CUDA 12 / cuDNN 9: follow `CUDA_SETUP.md` and extract the portable DLLs into `runtime\cuda` before building.
 - WebView2: use the system-installed Evergreen Runtime rather than bundling a fixed Chromium runtime into the ZIP.
 
-The CUDA packager copies an exact allowlist from `runtime\cuda`; it does not scan the repository root for DLL families. The resulting local package carries the selected FFmpeg/CUDA files beside `HighlightMiner.exe`; WebView2 remains a Windows runtime prerequisite.
+The CUDA packager copies an exact allowlist from `runtime\cuda`; it does not scan the repository root for DLL families. The resulting local package carries FFmpeg in `bin` and CUDA/cuDNN in `runtime/cuda`; WebView2 remains a Windows runtime prerequisite.
 
 ## Bundle-size policy
 
@@ -204,3 +202,16 @@ HighlightMiner is open source, so nothing prevents a third party from compiling 
 - UI renderer: Microsoft Edge WebView2 through pywebview's `edgechromium` backend.
 - Build mode: **onedir**, console-capable with double-click console hiding.
 - Official release target: **Windows x64**.
+
+
+## Beta1 branding and layout validation
+
+The executable embeds `assets/highlightminer.ico`. The approved PNG sources stay
+in `assets/`; they are not copied to the release root. The matching splash is not
+enabled for beta1 because Windows focus behavior has not been verified.
+
+`tools/release_layout.py dist/HighlightMiner` checks the output structure during
+ordinary CI, where external runtimes are intentionally absent. The private release
+builder adds `--require-runtimes`, checks every approved runtime file and compares
+its packaged hash with the trusted source before creating the release ZIP.
+Only README.txt, LICENSE and ATTRIBUTIONS.md are shipped as documents.

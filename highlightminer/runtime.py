@@ -54,14 +54,10 @@ def portable_cuda_core_dlls() -> tuple[str, ...]:
 def portable_cuda_root() -> Path:
     """Resolve the local directory that should provide portable CUDA DLLs.
 
-    Source checkouts prefer the dedicated runtime/cuda directory when the core
-    runtime is present there. Existing root-folder source layouts remain a
-    backward-compatible fallback. Frozen builds keep the DLLs beside the EXE.
+    Source and frozen builds prefer runtime/cuda when its core files exist.
+    Older packages with DLLs beside the executable remain a fallback.
     """
     root = app_root()
-    if is_frozen():
-        return root
-
     dedicated = root / "runtime" / "cuda"
     if all((dedicated / name).is_file() for name in portable_cuda_core_dlls()):
         return dedicated
