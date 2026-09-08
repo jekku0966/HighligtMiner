@@ -2,7 +2,7 @@
 
 HighlightMiner uses `faster-whisper` / CTranslate2 for GPU transcription. Current faster-whisper releases require **cuBLAS for CUDA 12** and **cuDNN 9 for CUDA 12** when using recent CTranslate2 versions.
 
-For source/development checkouts, portable NVIDIA DLLs should live in the dedicated `runtime\cuda` directory. Packaged Windows builds still place the allowlisted DLLs directly beside `HighlightMiner.exe`, where the frozen runtime expects them. A system-wide CUDA Toolkit installation is not required for this layout.
+For source/development checkouts, portable NVIDIA DLLs should live in the dedicated `runtime\cuda` directory. Packaged Windows builds use the same `runtime\cuda` layout beside `HighlightMiner.exe`. A system-wide CUDA Toolkit installation is not required for this layout.
 
 ## 1. Download the CUDA 12 + cuDNN 9 library bundle
 
